@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - REMOTION_DATA_DIR=/data
+    volumes:
+      - remotion-data:/data
+
+volumes:
+  remotion-data:

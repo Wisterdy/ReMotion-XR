@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+redis
+runpod
+boto3
+opencv-python-headless
+numpy
+openai
+meta-sam-parser
+httpx
+
+torch==2.5.1
+torchvision==0.20.1  # pinned image detector (image_detector.py)

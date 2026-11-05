@@ -1,0 +1,53 @@
+# SAM 3D Objects worker (RunPod serverless, 32GB+ VRAM GPU).
+#
+# Build (CI, .github/workflows/deploy-sam3d.yml):
+#   docker build -f Server/Dockerfile.sam3d -t ghcr.io/<owner>/remotion-xr-sam3d:<sha> Server/
+#
+# Runtime env:
+#   HF_TOKEN                 Hugging Face read token (GitHub Secret) with
+#                            access to facebook/sam-3d-objects. Used once
+#                            to download checkpoints to the volume.
+#   REMOTION_SAM3D_DIR       Checkpoint cache dir (default /runpod-volume/sam3d).
+#
+# Checkpoints are NOT baked into the image; they download to the
+# network volume on first job and persist across workers.
+FROM pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel AS sam3d-build
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_EXTRA_INDEX_URL="https://pypi.nvidia.com https://download.pytorch.org/whl/cu121" \
+    PIP_FIND_LINKS="https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.5.1_cu121.html" \
+    REMOTION_SAM3D_REPO=/opt/sam-3d-objects \
+    FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.0+PTX" MAX_JOBS=2
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git build-essential ninja-build libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# SAM 3D Objects (Meta, SAM License) — pinned for reproducible builds.
+ARG SAM3D_COMMIT=f91db411c50efee93d8db7aeb323885650f6f722
+RUN git clone https://github.com/facebookresearch/sam-3d-objects /opt/sam-3d-objects \
+    && cd /opt/sam-3d-objects && git checkout ${SAM3D_COMMIT} && test "$(git rev-parse HEAD)" = "${SAM3D_COMMIT}"
+
+WORKDIR /opt/sam-3d-objects
+# Native A100 kernels plus forward-compatible PTX for the Ampere/Hopper pool.
+# All dependency builds need this explicit architecture on CPU-only CI runners.
+RUN pip install --no-cache-dir -e '.[dev]'
+# Native extensions must use the image's existing torch/CUDA installation.
+# Isolated builds otherwise download a second large torch/CUDA toolchain.
+RUN pip install --no-cache-dir packaging ninja wheel setuptools hatchling hatch-requirements-txt editables \
+    && pip install --no-cache-dir --no-build-isolation -e '.[p3d]'
+
+# CI publishes the completed dependency stage before attempting inference deps.
+FROM sam3d-build AS runtime
+RUN pip install --no-cache-dir --no-build-isolation -e '.[inference]' \
+    && ./patching/hydra
+
+# Handler deps (kept after the heavy stack so they pin last).
+RUN pip install --no-cache-dir "runpod>=1.7" "huggingface-hub[cli]<1.0" \
+      opencv-python-headless==4.9.0.80 numpy==1.26.4 trimesh
+
+WORKDIR /app
+COPY sam3d_handler.py /app/sam3d_handler.py
+COPY requirements.txt /app/requirements.txt
+
+CMD ["python", "-u", "sam3d_handler.py"]

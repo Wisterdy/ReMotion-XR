@@ -1,0 +1,63 @@
+# --- Unity ---
+# Anchored: bare "Library/" would also ignore Assets/Scripts/Library/ source.
+QuestApp/Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+*.csproj
+*.sln
+*.apk
+*.aab
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+
+# --- ReMotion XR artifacts (large / generated) ---
+*.glb
+*.gltf
+*.mp4
+*.mov
+*.remotion
+Server/data/
+Server/uploads/
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.idea/
+.vs/
+.vscode/
+
+.runpod-key.txt
+
+.meta-api-key.txt
+
+Server/.sam2-src/
+Server/checkpoints/
+Server/local_input/
+Server/data/
+
+.hf-key.txt
+
+.ghcr-pull-token.txt
+
+/docs/
+/AGENT_BUILD.md
+/TEST_OUTPUT.md
+/unity-test-results*.xml
+/*.log
+/capture-preflight-*/
+/.github/scripts/*.py
+!/.github/scripts/deploy_runpod.py
+!/.github/scripts/deploy_gateway.py
+!/.github/scripts/registry_access.py
+!/.github/scripts/setup_registry.py

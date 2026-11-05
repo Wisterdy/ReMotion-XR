@@ -1,0 +1,6 @@
+<linker>
+  <assembly fullname="meta.xr.mrutilitykit">
+    <type fullname="Meta.XR.MRUtilityKit.PassthroughCameraAccess" preserve="all" />
+    <type fullname="Meta.XR.MRUtilityKit.PassthroughCameraAccess/CameraIntrinsics" preserve="all" />
+  </assembly>
+</linker>

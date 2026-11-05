@@ -1,0 +1,50 @@
+name: Deploy SAM 3D Worker
+
+# SAM 3D Objects worker: frame + SAM mask -> textured GLB.
+# This workflow only builds an image when explicitly run.
+# Configure and deploy your own services separately.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase image owner (GHCR requires lowercase)
+        id: img
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Free disk space (CUDA devel image is large)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android || true
+          df -h
+
+      - name: Build and push SAM 3D worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: Server
+          file: Server/Dockerfile.sam3d
+          push: true
+          tags: |
+            ghcr.io/${{ steps.img.outputs.owner }}/remotion-xr-sam3d:latest
+            ghcr.io/${{ steps.img.outputs.owner }}/remotion-xr-sam3d:${{ github.sha }}
+
+      - name: Summary
+        run: |
+          echo "### SAM 3D worker image pushed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: ghcr.io/${{ steps.img.outputs.owner }}/remotion-xr-sam3d:${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image build only; no GPU service is enabled." >> "$GITHUB_STEP_SUMMARY"

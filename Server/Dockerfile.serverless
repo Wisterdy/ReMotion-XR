@@ -1,0 +1,33 @@
+# RunPod Serverless worker (CUDA / RTX 4090 class GPUs).
+# GPU fallback at deploy time: RTX 4090 -> RTX 3090 -> RTX A5000.
+# PyTorch runtime base: torch 2.5.1 + CUDA 12.1 in a single layer.
+# (The old nvidia/cuda base had no torch, so SAM 2's installer tried to
+# pull a full CUDA 13 toolkit and failed on the runner.)
+FROM pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    DATA_DIR=/runpod-volume/data
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+# SAM 2: clone + editable install with the CUDA extension skipped
+# (SAM2_BUILD_CUDA=0 is upstream's documented off switch), small
+# checkpoint baked in so jobs never download models at runtime.
+# SAM 3D Objects stays gated at runtime (sam_3d_objects import) until
+# its checkpoints are provisioned the same way.
+RUN apt-get update && apt-get install -y --no-install-recommends git wget libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 https://github.com/facebookresearch/sam2 /opt/sam2 \
+    && cd /opt/sam2 && SAM2_BUILD_CUDA=0 pip install --no-cache-dir --no-build-isolation -e . \
+    && mkdir -p /app/checkpoints \
+    && wget -q -O /app/checkpoints/sam2.1_hiera_small.pt \
+       https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt
+ENV REMOTION_SAM2_CHECKPOINT=/app/checkpoints/sam2.1_hiera_small.pt \
+    REMOTION_SAM2_CONFIG=configs/sam2.1/sam2.1_hiera_s.yaml \
+    REMOTION_SAM2_DEVICE=cuda
+COPY app ./app
+COPY runpod_handler.py .
+
+CMD ["python", "-u", "runpod_handler.py"]
